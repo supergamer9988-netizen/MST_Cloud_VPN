@@ -8,6 +8,13 @@ configurations.all {
     resolutionStrategy {
         force("androidx.core:core:1.13.1")
         force("androidx.core:core-ktx:1.13.1")
+        force("androidx.activity:activity:1.9.0")
+        force("androidx.activity:activity-ktx:1.9.0")
+        force("androidx.fragment:fragment:1.7.1")
+        force("androidx.fragment:fragment-ktx:1.7.1")
+        force("androidx.lifecycle:lifecycle-runtime:2.8.4")
+        force("androidx.lifecycle:lifecycle-process:2.8.4")
+        force("androidx.lifecycle:lifecycle-viewmodel:2.8.4")
     }
 }
 
