@@ -21,6 +21,9 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Debug File Structure
+        run: ls -R
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
