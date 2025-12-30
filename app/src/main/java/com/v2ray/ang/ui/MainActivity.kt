@@ -10,50 +10,49 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.v2ray.ang.handler.V2RayServiceManager
 import com.v2ray.ang.handler.AngConfigManager
-import com.v2ray.ang.AppConfig
+import com.v2ray.ang.handler.MmkvManager
 import java.net.URL
 import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
-
-    // 🔴 LINK CONFIG: ลิงก์รวม vmess ฟรี (เปลี่ยนได้ตามต้องการ)
     val CONFIG_URL = "https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/v2"
-
-    var serverList = mutableListOf<String>()
+    var rawConfigData: String = ""
     lateinit var statusText: TextView
+    lateinit var btnConnect: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // --- 1. UI SETUP (สร้างหน้าจอด้วยโค้ด ไม่ใช้ XML) ---
+        // 1. Setup Minimal Dark UI (No XML)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#121212")) // Dark Mode Background
+            setBackgroundColor(Color.parseColor("#121212")) // Dark Background
+            setPadding(50, 50, 50, 50)
         }
 
         val title = TextView(this).apply {
             text = "MST CLOUD VPN"
-            textSize = 24f
-            setTextColor(Color.CYAN)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 30)
-        }
-
-        statusText = TextView(this).apply {
-            text = "Initializing Cloud Config..."
-            setTextColor(Color.LTGRAY)
+            textSize = 28f
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 50)
         }
-        
-        val btnConnect = Button(this).apply {
-            text = "LOADING..."
+
+        statusText = TextView(this).apply {
+            text = "Initializing..."
             textSize = 18f
-            setPadding(50, 40, 50, 40)
-            setBackgroundColor(Color.DKGRAY)
+            setTextColor(Color.LTGRAY)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 100)
+        }
+
+        btnConnect = Button(this).apply {
+            text = "CONNECT"
+            textSize = 20f
+            setBackgroundColor(Color.parseColor("#1E88E5")) // Blue
             setTextColor(Color.WHITE)
-            isEnabled = false 
+            setPadding(40, 40, 40, 40)
         }
 
         layout.addView(title)
@@ -61,59 +60,81 @@ class MainActivity : AppCompatActivity() {
         layout.addView(btnConnect)
         setContentView(layout)
 
-        // --- 2. LOGIC: FETCH CONFIG (ดึงข้อมูลทันทีที่เปิดแอป) ---
+        // 2. Fetch Config on Startup
         thread {
             try {
+                runOnUiThread { statusText.text = "Fetching Config..." }
                 val rawData = URL(CONFIG_URL).readText()
-                // กรองเอาเฉพาะบรรทัดที่เป็น vmess://
-                serverList = rawData.lines()
-                    .filter { it.contains("vmess://") }
-                    .filter { it.isNotBlank() }
-                    .toMutableList()
-
-                runOnUiThread {
-                    if (serverList.isNotEmpty()) {
-                        statusText.text = "✅ Ready! Found ${serverList.size} servers."
-                        btnConnect.text = "TAP TO CONNECT"
-                        btnConnect.isEnabled = true
-                        btnConnect.setBackgroundColor(Color.RED)
-                    } else {
-                        statusText.text = "❌ Error: No servers found in URL."
-                    }
+                rawConfigData = rawData
+                runOnUiThread { 
+                    statusText.text = "Ready to Connect"
+                    statusText.setTextColor(Color.GREEN)
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    statusText.text = "⚠️ Network Error. Please check internet."
+                runOnUiThread { 
+                    statusText.text = "Fetch Error: ${e.message}" 
+                    statusText.setTextColor(Color.RED)
                 }
             }
         }
 
-        // --- 3. LOGIC: CONNECT/DISCONNECT (สุ่มเซิร์ฟเวอร์) ---
+        // 3. Connect/Disconnect Logic
         btnConnect.setOnClickListener {
-            if (V2RayServiceManager.v2rayPoint.isRunning) {
-                // STOP
-                V2RayServiceManager.stopV2Ray(this)
-                btnConnect.text = "TAP TO CONNECT"
-                btnConnect.setBackgroundColor(Color.RED)
-                statusText.text = "🔴 Disconnected"
+            if (V2RayServiceManager.isRunning()) {
+                // Disconnect
+                V2RayServiceManager.stopVService(this)
+                updateUI(false)
             } else {
-                // START
-                if (serverList.isNotEmpty()) {
+                // Connect
+                if (rawConfigData.isNotBlank()) {
                     try {
-                        AngConfigManager.deleteServer(AppConfig.ANG_PACKAGE) // เคลียร์ของเก่า
-                        val randomConfig = serverList.random() // สุ่มตัวใหม่
-                        val config = AngConfigManager.importShare(randomConfig)
+                        statusText.text = "Connecting..."
                         
-                        if (config != null) {
-                            V2RayServiceManager.startV2Ray(this, config, null, null)
-                            btnConnect.text = "🟢 CONNECTED"
-                            btnConnect.setBackgroundColor(Color.GREEN)
-                            statusText.text = "Active: ${config.remarks}"
+                        // Clear old configs
+                        MmkvManager.removeAllServer()
+                        
+                        // Import new configs
+                        AngConfigManager.importBatchConfig(rawConfigData, "", false)
+                        
+                        // Get list of all imported servers
+                        val serverList = MmkvManager.decodeServerList()
+                        
+                        if (serverList.isNotEmpty()) {
+                            // Randomly select one
+                            val randomGuid = serverList.random()
+                            
+                            // Start Service with selected guid
+                            V2RayServiceManager.startVService(this, randomGuid)
+                            updateUI(true)
+                        } else {
+                            statusText.text = "No Valid Servers Found"
                         }
                     } catch (e: Exception) {
-                        statusText.text = "Config Error. Try again."
+                        statusText.text = "Error: ${e.message}"
+                        statusText.setTextColor(Color.RED)
                     }
+                } else {
+                    Toast.makeText(this, "Config not loaded yet", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+        
+        // Initial UI State Check
+        updateUI(V2RayServiceManager.isRunning())
+    }
+
+    private fun updateUI(isConnected: Boolean) {
+        runOnUiThread {
+            if (isConnected) {
+                btnConnect.text = "DISCONNECT"
+                btnConnect.setBackgroundColor(Color.parseColor("#D32F2F")) // Red
+                statusText.text = "CONNECTED"
+                statusText.setTextColor(Color.GREEN)
+            } else {
+                btnConnect.text = "CONNECT"
+                btnConnect.setBackgroundColor(Color.parseColor("#1E88E5")) // Blue
+                statusText.text = "DISCONNECTED"
+                statusText.setTextColor(Color.LTGRAY)
             }
         }
     }
