@@ -8,8 +8,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.v2ray.ang.service.V2RayServiceManager
-import com.v2ray.ang.util.AngConfigManager
+import com.v2ray.ang.handler.V2RayServiceManager
+import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.AppConfig
 import java.net.URL
 import kotlin.concurrent.thread
